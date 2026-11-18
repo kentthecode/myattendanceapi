@@ -59,13 +59,14 @@ def compute_session_deadline(current_dt: datetime, max_run_minutes: int) -> date
     hard_cap = current_dt + timedelta(minutes=max_run_minutes)
     cur_minutes = current_dt.hour * 60 + current_dt.minute
     weekday = current_dt.weekday()
-    if cur_minutes < 12 * 60 + 15:
-        block_end = current_dt.replace(hour=12, minute=10, second=0, microsecond=0)
-        return min(hard_cap, max(block_end, current_dt + timedelta(minutes=15)))
-    if 12 * 60 + 40 <= cur_minutes < 17 * 60 + 45:
-        end_hour, end_min = (16, 10) if weekday in (0, 2, 4) else (17, 40)
-        block_end = current_dt.replace(hour=end_hour, minute=end_min, second=0, microsecond=0)
-        return min(hard_cap, max(block_end, current_dt + timedelta(minutes=15)))
+    if weekday == 5:
+        day_end = current_dt.replace(hour=12, minute=10, second=0, microsecond=0)
+    elif weekday in (0, 2, 4):
+        day_end = current_dt.replace(hour=16, minute=10, second=0, microsecond=0)
+    else:
+        day_end = current_dt.replace(hour=17, minute=40, second=0, microsecond=0)
+    if cur_minutes < (day_end.hour * 60 + day_end.minute):
+        return min(hard_cap, max(day_end, current_dt + timedelta(minutes=15)))
     return min(hard_cap, current_dt + timedelta(minutes=30))
 
 def login(page: Page, username: str, password: str) -> bool:
@@ -183,7 +184,7 @@ def stay_in_live_class(page: Page, class_id: str, deadline: datetime) -> None:
 def main() -> int:
     username = os.environ.get("LMS_USERNAME", "").strip()
     password = os.environ.get("LMS_PASSWORD", "").strip()
-    max_run_minutes = int(os.environ.get("MAX_RUN_MINUTES", "200"))
+    max_run_minutes = int(os.environ.get("MAX_RUN_MINUTES", "320"))
     if not username or not password:
         log("ERROR: LMS_USERNAME and LMS_PASSWORD are required.")
         return 1
