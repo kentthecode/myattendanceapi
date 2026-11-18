@@ -14,11 +14,20 @@ DASHBOARD_URL = f"{BASE_URL}/user/user/dashboard"
 PHT = timezone(timedelta(hours=8))
 
 SCHEDULE_BLOCKS = [
-    {"class_id": "460", "name": "Information Assurance and Security 1", "start_hm": (9, 0), "end_hm": (10, 30)},
-    {"class_id": "462", "name": "IT 22 - Application Development and Emerging Technologies", "start_hm": (10, 30), "end_hm": (12, 0)},
-    {"class_id": "461", "name": "IT 21 - Social and Professional Issues", "start_hm": (14, 30), "end_hm": (16, 0)},
-    {"class_id": "463", "name": "IT 23 - Web System and Technologies 2", "start_hm": (16, 0), "end_hm": (17, 30)},
+    {"class_id": "460", "days": (1, 3), "name": "Information Assurance and Security 1", "start_hm": (9, 0), "end_hm": (10, 30)},
+    {"class_id": "462", "days": (1, 3), "name": "IT 22 - Application Development and Emerging Technologies", "start_hm": (10, 30), "end_hm": (12, 0)},
+    {"class_id": "461", "days": (1, 3), "name": "IT 21 - Social and Professional Issues", "start_hm": (14, 30), "end_hm": (16, 0)},
+    {"class_id": "463", "days": (1, 3), "name": "IT 23 - Web System and Technologies 2", "start_hm": (16, 0), "end_hm": (17, 30)},
+    {"class_id": "599", "days": (0, 2, 4), "name": "ERG & FP", "start_hm": (9, 0), "end_hm": (10, 0)},
+    {"class_id": "597", "days": (0, 2, 4), "name": "INTRO MICE", "start_hm": (10, 0), "end_hm": (11, 0)},
+    {"class_id": "594", "days": (0, 2, 4), "name": "MDWTP", "start_hm": (11, 0), "end_hm": (12, 0)},
+    {"class_id": "596", "days": (0, 2, 4), "name": "FD STL", "start_hm": (13, 0), "end_hm": (14, 0)},
+    {"class_id": "595", "days": (0, 2, 4), "name": "T&H ENTREP", "start_hm": (14, 0), "end_hm": (15, 0)},
+    {"class_id": "593", "days": (0, 2, 4), "name": "TQM", "start_hm": (15, 0), "end_hm": (16, 0)},
+    {"class_id": "598", "days": (5,), "name": "FL 2", "start_hm": (9, 0), "end_hm": (12, 0)},
 ]
+
+ALL_CLASS_IDS = ["460", "461", "462", "463", "593", "594", "595", "596", "597", "598", "599"]
 
 VISIBILITY_OVERRIDE_JS = """
 (() => {
@@ -34,23 +43,28 @@ def now_pht() -> datetime:
 def log(msg: str) -> None:
     print(f"[{now_pht().strftime('%Y-%m-%d %I:%M:%S %p PHT')}] {msg}", flush=True)
 
-def get_preferred_class_id(current_dt: datetime) -> Optional[str]:
+def get_preferred_class_id(current_dt: datetime, live_ids: List[str]) -> Optional[str]:
     cur_minutes = current_dt.hour * 60 + current_dt.minute
+    weekday = current_dt.weekday()
     for block in SCHEDULE_BLOCKS:
-        start_m = block["start_hm"][0] * 60 + block["start_hm"][1] - 15
+        if weekday not in block["days"]:
+            continue
+        start_m = block["start_hm"][0] * 60 + block["start_hm"][1] - 10
         end_m = block["end_hm"][0] * 60 + block["end_hm"][1]
-        if start_m <= cur_minutes < end_m:
+        if start_m <= cur_minutes < end_m and block["class_id"] in live_ids:
             return block["class_id"]
     return None
 
 def compute_session_deadline(current_dt: datetime, max_run_minutes: int) -> datetime:
     hard_cap = current_dt + timedelta(minutes=max_run_minutes)
     cur_minutes = current_dt.hour * 60 + current_dt.minute
+    weekday = current_dt.weekday()
     if cur_minutes < 12 * 60 + 15:
         block_end = current_dt.replace(hour=12, minute=10, second=0, microsecond=0)
         return min(hard_cap, max(block_end, current_dt + timedelta(minutes=15)))
-    if 13 * 60 + 30 <= cur_minutes < 17 * 60 + 45:
-        block_end = current_dt.replace(hour=17, minute=40, second=0, microsecond=0)
+    if 12 * 60 + 40 <= cur_minutes < 17 * 60 + 45:
+        end_hour, end_min = (16, 10) if weekday in (0, 2, 4) else (17, 40)
+        block_end = current_dt.replace(hour=end_hour, minute=end_min, second=0, microsecond=0)
         return min(hard_cap, max(block_end, current_dt + timedelta(minutes=15)))
     return min(hard_cap, current_dt + timedelta(minutes=30))
 
@@ -92,8 +106,8 @@ def fetch_live_classes(page: Page) -> List[str]:
 def pick_best_live_class(live_ids: List[str]) -> Optional[str]:
     if not live_ids:
         return None
-    preferred = get_preferred_class_id(now_pht())
-    if preferred and preferred in live_ids:
+    preferred = get_preferred_class_id(now_pht(), live_ids)
+    if preferred:
         return preferred
     return live_ids[0]
 
@@ -123,11 +137,10 @@ def stay_in_live_class(page: Page, class_id: str, deadline: datetime) -> None:
     body_text = page.locator("body").inner_text(timeout=5000)
     if "only be in one class at a time" in body_text.lower():
         log("Releasing previous active class...")
-        for other_block in SCHEDULE_BLOCKS:
-            other_id = other_block["class_id"]
+        for other_id in ALL_CLASS_IDS:
             if other_id != class_id:
                 page.goto(f"{BASE_URL}/class/{other_id}", wait_until="domcontentloaded", timeout=30000)
-                page.wait_for_timeout(1000)
+                page.wait_for_timeout(800)
                 leave_current_class_if_present(page)
         page.goto(class_url, wait_until="domcontentloaded", timeout=45000)
         page.wait_for_timeout(2000)
