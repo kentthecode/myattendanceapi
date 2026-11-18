@@ -1,0 +1,40 @@
+name: El Pirata LMS Auto Attendance - Account 2 (std1110)
+
+on:
+  schedule:
+    - cron: '55 0 * * 1,3,5,6'
+    - cron: '55 4 * * 1,3,5'
+    - cron: '35 5 * * 1,3,5'
+  workflow_dispatch:
+    inputs:
+      max_run_minutes:
+        description: 'Maximum minutes to stay active (default: 200)'
+        required: false
+        default: '200'
+
+concurrency:
+  group: lms-attendance-bshm-3c
+  cancel-in-progress: false
+
+jobs:
+  attend-class-account2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 215
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - name: Install Python dependencies & Playwright Chromium
+        run: |
+          pip install -r requirements.txt
+          playwright install --with-deps chromium
+      - name: Run LMS Attendance Bot (Account 2 - std1110)
+        env:
+          LMS_USERNAME: ${{ secrets.LMS_USERNAME_2 }}
+          LMS_PASSWORD: ${{ secrets.LMS_PASSWORD_2 }}
+          MAX_RUN_MINUTES: ${{ github.event.inputs.max_run_minutes || '200' }}
+        run: python attendance_bot.py
