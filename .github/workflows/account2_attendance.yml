@@ -1,4 +1,4 @@
-name: El Pirata LMS Auto Attendance - Account 2 (std1110)
+name: El Pirata LMS Auto Attendance - Account 2
 
 on:
   schedule:
@@ -35,7 +35,7 @@ jobs:
         run: |
           pip install -r requirements.txt
           playwright install --with-deps chromium
-      - name: Run LMS Attendance Bot (Account 2 - std1110)
+      - name: Run LMS Attendance Bot (Account 2)
         env:
           LMS_USERNAME: ${{ secrets.LMS_USERNAME_2 }}
           LMS_PASSWORD: ${{ secrets.LMS_PASSWORD_2 }}
